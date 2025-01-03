@@ -61,7 +61,8 @@ generate_preview(){
         -font "$1" \
         -fill "$FG_COLOR" \
         -annotate +0+0 "$PREVIEW_TEXT" \
-        -flatten "$2"
+        "$2.tmp.png" &&
+    mv "$2.tmp.png" $2
 }
 
 main(){
