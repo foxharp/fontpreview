@@ -105,9 +105,6 @@ main(){
     # having to manualy change the focus back to the terminal.
     xdotool getactivewindow > "$TERMWIN_IDFILE"
 
-    # Flag to run some commands only once in the loop
-    FIRST_RUN=true
-
     while true; do
         # List out all the fonts which imagemagick is able to find, extract
         # the font names and then pass them to fzf
@@ -119,22 +116,16 @@ main(){
 
         generate_preview "$font" "$FONT_PREVIEW"
 
-        if [[ $FIRST_RUN == true ]]; then
-            FIRST_RUN=false
-
+        if [[ ! $viewerpid ]] || ! kill -0 $viewerpid ; then
             # Display the font preview using nsxiv
             $sxiv -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW" &
+            viewerpid=$!
 
             # Change focus from nsxiv, back to the terminal window
             # so that user can continue to search for fonts without
             # having to manually change focus back to the terminal window
             xdotool windowfocus "$(cat "$TERMWIN_IDFILE")"
-
-            # Save the process ID so that we can kill
-            # nsxiv when the user exits the script
-            echo $! >"$PIDFILE"
-
-	fi
+        fi
     done
 }
 
@@ -148,8 +139,6 @@ trap pre_exit EXIT
 # Use mktemp to create a temporary directory that won't
 # collide with temporary files of other application.
 FONTPREVIEW_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fontpreview_dir.XXXXXXXX")" || exit
-PIDFILE="$FONTPREVIEW_DIR/fontpreview.pid"
-touch "$PIDFILE" || exit
 FONT_PREVIEW="$FONTPREVIEW_DIR/fontpreview.png"
 touch "$FONT_PREVIEW" || exit
 TERMWIN_IDFILE="$FONTPREVIEW_DIR/fontpreview.termpid"
