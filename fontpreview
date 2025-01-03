@@ -4,6 +4,10 @@
 #
 # Dependencies: nsxiv or sxiv, imagemagick, xdotool, fzf
 
+exec 3>&2   # save a copy of original stderr for fzf to use
+# uncomment next line to save a debug trace
+# exec 2>/tmp/fontpreview.log ; set -x
+
 VERSION=1.0.7
 
 # Default values
@@ -108,7 +112,9 @@ main(){
     while true; do
         # List out all the fonts which imagemagick is able to find, extract
         # the font names and then pass them to fzf
-        font=$($magick -list font | awk -F: '/^[ ]*Font: /{print substr($NF,2)}' | fzf --prompt="$SEARCH_PROMPT")
+        font=$($magick -list font |
+                awk -F: '/^[ ]*Font: /{print substr($NF,2)}' |
+                fzf --prompt="$SEARCH_PROMPT" 2>&3)
 
         # Exit if nothing is returned by fzf, which also means that the user
         # has pressed [ESCAPE]
