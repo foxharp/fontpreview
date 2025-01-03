@@ -17,7 +17,19 @@ POSITION=;   # Let the window manager choose a position.  User can override.
 FONT_SIZE=38
 BG_COLOR="#ffffff"
 FG_COLOR="#000000"
-PREVIEW_TEXT="ABCDEFGHIJKLM\nNOPQRSTUVWXYZ\nabcdefghijklm\nnopqrstuvwxyz\n1234567890\n!@$\%(){}[]\nالسلام عليكم"
+PREVIEW_TEXT='\
+ ABCDEFGHIJKLM\n\
+ NOPQRSTUVWXYZ\n\
+ abcdefghijklm\n\
+ nopqrstuvwxyz\n\
+ 1234567890\n\
+ !@$\\/%%(){}[]\n\
+ .,:;=+>--<__\n\
+ ({[ -~\n\
+ DO08B 1Ili\n\
+ AR 9gq oa\n\
+ السلام عليكم \
+'
 
 show_help() {
 printf "%s" "\
