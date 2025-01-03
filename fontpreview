@@ -144,7 +144,9 @@ main(){
         # the font names and then pass them to fzf
         font=$($magick -list font |
                 awk -F: '/^[ ]*Font: /{print substr($NF,2)}' |
-                fzf --prompt="$SEARCH_PROMPT" 2>&3)
+                fzf --query=$(cat $FONTPREVIEW_DIR/query 2>/dev/null) \
+                    --preview="echo {q} > $FONTPREVIEW_DIR/query" \
+                        --prompt="$SEARCH_PROMPT" 2>&3)
 
         # Exit if nothing is returned by fzf, which also means that the user
         # has pressed [ESCAPE]
