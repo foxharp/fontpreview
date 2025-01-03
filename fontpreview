@@ -60,12 +60,8 @@ optional arguments:
 }
 
 pre_exit() {
-    # Get the proccess ID of this script and kill it.
-    # We are dumping the output of kill to /dev/null
-    # because if the user quits nsxiv before they
-    # exit this script, an error will be shown
-    # from kill and we dont want that
-    kill -9 "$(cat "$PIDFILE" 2>/dev/null)" &> /dev/null
+    # kill the image viewer
+    test "$viewerpid" && kill -TERM $viewerpid 2>/dev/null
 
     # Delete tempfiles, so we don't leave useless files behind.
     rm -rf "$FONTPREVIEW_DIR"
