@@ -12,11 +12,12 @@ VERSION=1.0.7
 
 # Default values
 SEARCH_PROMPT="❯ "
-SIZE=1000x1000
+SIZE=530x730
 POSITION=;   # Let the window manager choose a position.  User can override.
 FONT_SIZE=38
 BG_COLOR="#ffffff"
 FG_COLOR="#000000"
+PREVIEW_HEADER=true
 PREVIEW_TEXT='\
  ABCDEFGHIJKLM\n\
  NOPQRSTUVWXYZ\n\
@@ -35,7 +36,7 @@ show_help() {
 printf "%s" "\
 usage: fontpreview [-h] [--size \"px\"] [--position \"+x+y\"] [--search-prompt SEARCH_PROMPT]
                    [--font-size \"FONT_SIZE\"] [--bg-color \"BG_COLOR\"] [--fg-color \"FG_COLOR\"]
-                   [--preview-text \"PREVIEW_TEXT\"] [-i font.otf] [-o preview.png] [--version]
+                   [--preview-text \"PREVIEW_TEXT\"] [--preview-header yes/no] [-i font.otf] [-o preview.png] [--version]
  
 ┌─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐┌─┐┬  ┬┬┌─┐┬ ┬
 ├┤ │ ││││ │ ├─┘├┬┘├┤ └┐┌┘│├┤ │││
@@ -53,6 +54,7 @@ optional arguments:
    --bg-color            background color of the font preview window
    --fg-color            foreground color of the font preview window
    --preview-text        preview text that should be displayed in the font preview window
+   --preview-header      include the font name in the preview image
    --version             show the version of fontpreview you are using
 "
 }
@@ -69,16 +71,34 @@ pre_exit() {
     rm -rf "$FONTPREVIEW_DIR"
 }
 
+wrapfontname()
+{
+    if [[ -f "$1" ]]
+    then  # if it's a filename, just fold the basename
+        fold -w 20 <<<"${1##*/}"
+    else # otherwise, change '-' to space and wrap on spaces
+        sed -e 's/-/ /g' <<<"$1" | fold -s -w 20
+    fi
+}
+
 generate_preview(){
+
+    fontspec=$1
+    outpng=$2
+
+    [[ $PREVIEW_HEADER == true ]] &&
+	header="$(wrapfontname $fontspec)\n\n"
+
     # Credits: https://bit.ly/2UvLVhM
     $magick -size $SIZE xc:"$BG_COLOR" \
         -gravity center \
         -pointsize $FONT_SIZE \
-        -font "$1" \
+        -font "$fontspec" \
         -fill "$FG_COLOR" \
-        -annotate +0+0 "$PREVIEW_TEXT" \
-        "$2.tmp.png" &&
-    mv "$2.tmp.png" $2
+        -annotate +0+0 \
+            "$header$PREVIEW_TEXT" \
+        "$outpng.tmp.png" &&
+    mv "$outpng.tmp.png" "$outpng"
 }
 
 error(){
@@ -114,6 +134,8 @@ main(){
     [[ $FONTPREVIEW_BG_COLOR != "" ]] && BG_COLOR=$FONTPREVIEW_BG_COLOR
     [[ $FONTPREVIEW_FG_COLOR != "" ]] && FG_COLOR=$FONTPREVIEW_FG_COLOR
     [[ $FONTPREVIEW_PREVIEW_TEXT != "" ]] && PREVIEW_TEXT=$FONTPREVIEW_PREVIEW_TEXT
+    [[ $FONTPREVIEW_HEADER != "" ]] && PREVIEW_HEADER=$FONTPREVIEW_HEADER
+}
 
     # Save the window ID of the terminal window fontpreview is executed in.
     # This is so that when we open up nsxiv, we can change the focus back to
@@ -166,7 +188,10 @@ font=$1
 
 
 # Parse the arguments
-options=$(getopt -o hi:o: --long position:,size:,version,search-prompt:,font-size:,bg-color:,fg-color:,preview-text:,input:,output:,help -- "$@")
+options=$(getopt -o hi:o: --long position:,size:,version,search-prompt:,font-size:,bg-color:,fg-color:,preview-text:,preview-header:,input:,output:,help -- "$@")
+# exit on usage errors
+[[ $? == 0 ]] || error "try -h for help"
+
 eval set -- "$options"
 
 while true; do
@@ -207,6 +232,12 @@ while true; do
             ;;
         --preview-text)
             FONTPREVIEW_PREVIEW_TEXT=$2
+            ;;
+        --preview-header)
+            case $2 in
+            [yYtT1]*) FONTPREVIEW_HEADER=true ;;
+            [nNfF0]*) FONTPREVIEW_HEADER=false; ;;
+            esac
             ;;
         --)
             shift
