@@ -106,7 +106,7 @@ exists(){
     type -p "$1" &>/dev/null
 }
 
-main(){
+initialize(){
     # Checking if needed dependencies are installed
     exists sxiv && sxiv=sxiv
     exists nsxiv && sxiv=nsxiv
@@ -133,6 +133,7 @@ main(){
     [[ $FONTPREVIEW_HEADER != "" ]] && PREVIEW_HEADER=$FONTPREVIEW_HEADER
 }
 
+main(){
     # Save the window ID of the terminal window fontpreview is executed in.
     # This is so that when we open up nsxiv, we can change the focus back to
     # the terminal window, so that the user can search for the fonts without
@@ -181,8 +182,6 @@ FONT_PREVIEW="$FONTPREVIEW_DIR/fontpreview.png"
 touch "$FONT_PREVIEW" || exit
 TERMWIN_IDFILE="$FONTPREVIEW_DIR/fontpreview.termpid"
 touch "$TERMWIN_IDFILE" || exit
-
-font=$1
 
 
 # Parse the arguments
@@ -245,6 +244,9 @@ while true; do
     shift
 done
 
+initialize
+
+font=$1
 
 # Point a font file to fontpreview and it will preview it.
 # Example:
@@ -259,7 +261,7 @@ if [ -f "$font" ]; then
     # Display the font preview using nsxiv
     $sxiv -g "$SIZE$POSITION" -N "fontpreview" -b "$FONT_PREVIEW" &
 
-    # For some strange reason, nsxiv just doesnt have time to read the file
+    # exit will remove the file, so give nsxiv time to read it first
     sleep 0.1
     exit
 fi
