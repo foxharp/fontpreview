@@ -14,7 +14,7 @@ configure them using environment variables.
 - `xdotool`
 - `fzf`
 - `imagemagick`
-- `nsxiv`
+- `nsxiv`, `sxiv`, or `feh`
 
 ## Installation
 ### Install using `make`
