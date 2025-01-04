@@ -2,7 +2,7 @@
 #
 # Siddharth Dushantha 2020
 #
-# Dependencies: nsxiv or sxiv, imagemagick, xdotool, fzf
+# Dependencies: nsxiv, sxiv, or feh, and imagemagick, xdotool, fzf
 
 exec 3>&2   # save a copy of original stderr for fzf to use
 # uncomment next line to save a debug trace
@@ -83,7 +83,7 @@ generate_preview(){
     outpng=$2
 
     [[ $PREVIEW_HEADER == true ]] &&
-	header="$(wrapfontname $fontspec)\n\n"
+        header="$(wrapfontname $fontspec)\n\n"
 
     # Credits: https://bit.ly/2UvLVhM
     $magick -size $SIZE xc:"$BG_COLOR" \
@@ -107,18 +107,6 @@ exists(){
 }
 
 initialize(){
-    # Checking if needed dependencies are installed
-    exists sxiv && sxiv=sxiv
-    exists nsxiv && sxiv=nsxiv
-    test "$sxiv" || error Neither nsxiv nor sxiv is available.
-
-    exists convert && magick=convert
-    exists magick && magick=magick
-    test "$magick" || error Neither magick nor convert is available.
-
-    exists xdotool || error xdotool not available
-    exists fzf || error fzf not available
-
     # Checking for enviornment variables which the user might have set.
     # This config file for fontpreview is pretty much the bashrc, zshrc, etc
     # Majority of the variables in fontpreview can changed using the enviornment variables
@@ -131,6 +119,36 @@ initialize(){
     [[ $FONTPREVIEW_FG_COLOR != "" ]] && FG_COLOR=$FONTPREVIEW_FG_COLOR
     [[ $FONTPREVIEW_PREVIEW_TEXT != "" ]] && PREVIEW_TEXT=$FONTPREVIEW_PREVIEW_TEXT
     [[ $FONTPREVIEW_HEADER != "" ]] && PREVIEW_HEADER=$FONTPREVIEW_HEADER
+
+    # Checking if needed dependencies are installed
+    if exists nsxiv
+    then
+        viewer=nsxiv
+        # -N sets the X11 resource class name, not the title
+        vieweropts=( -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW")
+    elif exists sxiv
+    then
+        viewer=sxiv
+        vieweropts=( -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW")
+    elif exists feh
+    then
+        viewer=feh
+        vieweropts=( --title "fontpreview" -g "$SIZE$POSITION" "$FONT_PREVIEW")
+    fi
+    test "$viewer" || error None of nsxiv, sxiv, or feh is available.
+
+    exists convert && magick=convert
+    exists magick && magick=magick
+    test "$magick" || error Neither magick nor convert is available.
+
+    exists xdotool || error xdotool not available
+    exists fzf || error fzf not available
+
+}
+
+start_viewer(){
+
+    $viewer ${vieweropts[@]} &
 }
 
 main(){
@@ -155,9 +173,8 @@ main(){
 
         generate_preview "$font" "$FONT_PREVIEW"
 
-        if [[ ! $viewerpid ]] || ! kill -0 $viewerpid ; then
-            # Display the font preview using nsxiv
-            $sxiv -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW" &
+        if [[ ! $viewerpid ]] || ! kill -0 $viewerpid 2>/dev/null; then
+            start_viewer
             viewerpid=$!
 
             # Change focus from nsxiv, back to the terminal window
@@ -258,8 +275,8 @@ font=$1
 if [ -f "$font" ]; then
     generate_preview "$font" "$FONT_PREVIEW"
 
-    # Display the font preview using nsxiv
-    $sxiv -g "$SIZE$POSITION" -N "fontpreview" -b "$FONT_PREVIEW" &
+    start_viewer
+    # don't set viewerpid, else it will be killed when we exit
 
     # exit will remove the file, so give nsxiv time to read it first
     sleep 0.1
