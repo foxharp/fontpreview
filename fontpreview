@@ -165,6 +165,7 @@ main(){
                 awk -F: '/^[ ]*Font: /{print substr($NF,2)}' |
                 fzf --query=$(cat $FONTPREVIEW_DIR/query 2>/dev/null) \
                     --preview="echo {q} > $FONTPREVIEW_DIR/query" \
+		    --no-color \
                         --prompt="$SEARCH_PROMPT" 2>&3)
         fzf_ret=$?
 
