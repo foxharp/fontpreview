@@ -166,10 +166,18 @@ main(){
                 fzf --query=$(cat $FONTPREVIEW_DIR/query 2>/dev/null) \
                     --preview="echo {q} > $FONTPREVIEW_DIR/query" \
                         --prompt="$SEARCH_PROMPT" 2>&3)
+        fzf_ret=$?
 
-        # Exit if nothing is returned by fzf, which also means that the user
-        # has pressed [ESCAPE]
-        [[ -z $font ]] && return
+        # fzf exit codes:
+        # 0      Normal exit
+        # 1      No match
+        # 2      Error
+        # 130    Interrupted with CTRL-C or ESC
+
+        case $fzf_ret in
+        130|2) return ;;   # error or interrupt
+        1)     continue ;; # no match
+        esac
 
         generate_preview "$font" "$FONT_PREVIEW"
 
