@@ -221,11 +221,6 @@ main(){
     done
 }
 
-# Disable CTRL-Z because if we allowed this key press,
-# then the script would exit but, nsxiv would still be
-# running
-trap "" SIGTSTP
-
 trap pre_exit EXIT
 
 # Use mktemp to create a temporary directory that won't
