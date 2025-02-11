@@ -186,6 +186,9 @@ main(){
         $magick -list font |
             sed -n -e '/^ *Font: /s///p' |
                 fzf --query="$qstring" \
+                    -i \
+                    --history=$FONTPREVIEW_DIR/history \
+                    --bind 'esc:ignore' \
                     --print-query \
                     --no-clear \
                     --no-color \
@@ -208,6 +211,9 @@ main(){
         esac
 
         font=$(tail -n 1 $FONTPREVIEW_DIR/result)
+        qstring="$font"
+        sed -i -e '$d' $FONTPREVIEW_DIR/history
+        echo "$qstring" >> $FONTPREVIEW_DIR/history
 
         generate_preview "$font" "$FONT_PREVIEW"
 
