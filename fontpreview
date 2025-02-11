@@ -1,27 +1,61 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # Siddharth Dushantha 2020
+# Paul Fox 2025
 #
 # Dependencies: nsxiv, sxiv, or feh, and imagemagick, xdotool, fzf
 
+show_help()
+{
+printf "%s" "\
+
+Interactive usage:
+    fontpreview [--size WxH ] [--position +X+Y ]
+                [--bg-color <colorspec> ] [--fg-color <colorspec> ]
+                [--font-size <pixels> ] [--preview-text <text> ]
+                [--no-preview-header ] [--multi-viewer ]
+ 
+   --multi-viewer           spawn new viewer per font.  (clean up manually.)
+   --size WxH               width and height in pixels
+   --position +X+Y/-X-Y     position, in X geometry notation (see \"man X\")
+   --font-size              font size for the preview window
+   --bg-color,--fg-color    colors for the preview window
+   --preview-text           text to be previewed
+   --no-preview-header      don't include the font name in the preview
+
+One-shot usage (most interactive options still apply):
+    To preview a font from its file (.otf, .ttf, .woff):
+        fontpreview <fontfile>
+    or to create a preview image from its file:
+        fontpreview <fontfile> <imagefile>
+"
+}
+
+# Debug support:
+debug=t;
 # save a copy of original stderr for fzf to use, so we can trace on stderr
 exec 3>&2
+exec 4>/dev/null  # dump fd 4, except when debugging (see below)
+[[ $debug ]] && { exec 2>/tmp/fontpreview.log ; set -x; exec 4>&2;  }
 
-# uncomment next line to save a debug trace
-# exec 2>/tmp/fontpreview.log ; set -x
 
-VERSION=1.0.7
+# Use mktemp to create a temporary directory that won't
+# collide with temporary files of other application.
+fp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fontpreview_dir.XXXXXXXX")" || exit
 
-# Default values
-SEARCH_PROMPT="❯ "
-SIZE=530x730
-POSITION=;   # Let the window manager choose a position.  User can override.
-HEADER_FONT_SIZE=30
-FONT_SIZE=38
-BG_COLOR="#ffffff"
-FG_COLOR="#000000"
-PREVIEW_HEADER=true
-PREVIEW_TEXT='\
+preview_image_name="$fp_dir/fontpreview"    # .png suffix added later
+user_config=~/.fontpreview
+
+# Default values, mostly changeable from command line, and
+# certainly from user config file
+preview_size=530x730
+preview_pos=;   # window manager chooses a position by default
+font_size=38
+fontname_size=30
+bg_color="#ffffff"
+fg_color="#000000"
+preview_fontname=true
+preview_text='\
  ABCDEFGHIJKLM\n\
  NOPQRSTUVWXYZ\n\
  abcdefghijklm\n\
@@ -36,39 +70,16 @@ PREVIEW_TEXT='\
  السلام عليكم \
 '
 
-show_help() {
-printf "%s" "\
-usage: fontpreview [-h] [--size \"px\"] [--position \"+x+y\"] [--search-prompt SEARCH_PROMPT]
-                   [--font-size \"FONT_SIZE\"] [--bg-color \"BG_COLOR\"] [--fg-color \"FG_COLOR\"]
-                   [--preview-text \"PREVIEW_TEXT\"] [--preview-header yes/no] [-i font.otf] [-o preview.png] [--version]
- 
-┌─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐┌─┐┬  ┬┬┌─┐┬ ┬
-├┤ │ ││││ │ ├─┘├┬┘├┤ └┐┌┘│├┤ │││
-└  └─┘┘└┘ ┴ ┴  ┴└─└─┘ └┘ ┴└─┘└┴┘
-Very customizable and minimal font previewer written in bash
- 
-optional arguments:
-   -h, --help            show this help message and exit
-   -i, --input           filename of the input font (.otf, .ttf, .woff are supported)
-   -o, --output          filename of the output preview image (input.png if not set)
-   --size                size of the font preview window
-   --position            the position where the font preview window should be displayed
-   --search-prompt       input prompt of fuzzy searcher
-   --font-size           font size
-   --bg-color            background color of the font preview window
-   --fg-color            foreground color of the font preview window
-   --preview-text        preview text that should be displayed in the font preview window
-   --preview-header      include the font name in the preview image
-   --version             show the version of fontpreview you are using
-"
-}
+# let user override defaults
+source $user_config 2>&4
 
-pre_exit() {
+on_exit()
+{
     # kill the image viewer
     test "$viewerpid" && kill -TERM $viewerpid 2>/dev/null
 
     # Delete tempfiles, so we don't leave useless files behind.
-    rm -rf "$FONTPREVIEW_DIR"
+    rm -rf "$fp_dir"
 
     echo
     exit
@@ -84,72 +95,65 @@ wrapfontname()
     fi
 }
 
-generate_preview(){
+generate_preview()
+{
 
-    fontspec=$1
-    outpng=$2
+    fontspec="$1"
+    image="$2"
 
     declare -a headerargs
-    if [[ $PREVIEW_HEADER == true ]]
+    if [[ $preview_fontname ]]
     then
         wrapped_fontname="$(wrapfontname $fontspec)"
         headerargs=( 
-            -gravity north -pointsize $HEADER_FONT_SIZE
+            -gravity north -pointsize $fontname_size
             -font "$fontspec"
             -annotate +0+0 "$wrapped_fontname"
         )
     fi
 
+    tempimage=$fp_dir/tmp-$(basename "$image")
+
     # Credits: https://bit.ly/2UvLVhM
-    $magick -size $SIZE xc:"$BG_COLOR" \
+    $magick -size $preview_size xc:"$bg_color" \
         "${headerargs[@]}" \
         -gravity center \
-        -pointsize $FONT_SIZE \
+        -pointsize $font_size \
         -font "$fontspec" \
-        -fill "$FG_COLOR" \
+        -fill "$fg_color" \
         -annotate +0+0 \
-            "$PREVIEW_TEXT" \
-        "$outpng.tmp.png" &&
-    mv "$outpng.tmp.png" "$outpng"
+            "$preview_text" \
+        $tempimage  &&
+    mv "$tempimage" "$image"
 }
 
-error(){
-    echo fontpreview error: "$@" >&2
+error()
+{
+    echo fontpreview: "$@" >&2
     exit 1
 }
 
-exists(){
+exists()
+{
     type -p "$1" &>/dev/null
 }
 
-initialize(){
-    # Checking for enviornment variables which the user might have set.
-    # This config file for fontpreview is pretty much the bashrc, zshrc, etc
-    # Majority of the variables in fontpreview can changed using the enviornment variables
-    # and this makes fontpreview very customizable
-    [[ $FONTPREVIEW_SEARCH_PROMPT != "" ]] && SEARCH_PROMPT=$FONTPREVIEW_SEARCH_PROMPT
-    [[ $FONTPREVIEW_SIZE != "" ]] && SIZE=$FONTPREVIEW_SIZE
-    [[ $FONTPREVIEW_POSITION != "" ]] && POSITION=$FONTPREVIEW_POSITION
-    [[ $FONTPREVIEW_FONT_SIZE != "" ]] && FONT_SIZE=$FONTPREVIEW_FONT_SIZE
-    [[ $FONTPREVIEW_BG_COLOR != "" ]] && BG_COLOR=$FONTPREVIEW_BG_COLOR
-    [[ $FONTPREVIEW_FG_COLOR != "" ]] && FG_COLOR=$FONTPREVIEW_FG_COLOR
-    [[ $FONTPREVIEW_PREVIEW_TEXT != "" ]] && PREVIEW_TEXT=$FONTPREVIEW_PREVIEW_TEXT
-    [[ $FONTPREVIEW_HEADER != "" ]] && PREVIEW_HEADER=$FONTPREVIEW_HEADER
-
+find_tools()
+{
     # Checking if needed dependencies are installed
     if exists nsxiv
     then
         viewer=nsxiv
         # -N sets the X11 resource class name, not the title
-        vieweropts=( -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW")
+        vieweropts=( -N "fontpreview" -b )
     elif exists sxiv
     then
         viewer=sxiv
-        vieweropts=( -N "fontpreview" -b -g "$SIZE$POSITION" "$FONT_PREVIEW")
+        vieweropts=( -N "fontpreview" -b )
     elif exists feh
     then
         viewer=feh
-        vieweropts=( --title "fontpreview" -g "$SIZE$POSITION" "$FONT_PREVIEW")
+        vieweropts=( --title "fontpreview" )
     fi
     test "$viewer" || error None of nsxiv, sxiv, or feh is available.
 
@@ -162,42 +166,77 @@ initialize(){
 
 }
 
-start_viewer(){
-
+start_viewer()
+{
     # put the viewer in its own session, so it will keep running if
     # we suspend.  otherwise it will suspend too, and not be quittable
-    setsid $viewer ${vieweropts[@]} &
+    setsid $viewer ${vieweropts[@]} $preview_image_name$newviewer.png &
 }
 
-main(){
-    # Save the window ID of the terminal window fontpreview is executed in.
-    # This is so that when we open up nsxiv, we can change the focus back to
-    # the terminal window, so that the user can search for the fonts without
-    # having to manualy change the focus back to the terminal.
-    xdotool getactivewindow > "$TERMWIN_IDFILE"
+one_shot_commands()
+{
+    fontfile="$1"
+    imagefile="$2"
+
+    test "$fontfile" || return
+
+    # Point a font file to fontpreview and it will preview it.
+    #   $ fontpreview fontFile.ttf
+    # Or, put the preview into an image file:
+    #   $ fontpreview fontFile.ttf /tmp/fontimage.png
+
+    test -r "$fontfile" || error "No such file font file $fontfile"
+
+    if [ -f "$fontfile" ]; then
+
+        if [[ "$imagefile" ]]
+        then
+            # user-specified image name
+            generate_preview "$fontfile" "$imagefile"
+            exit
+        fi
+
+        # image name in our temp dir
+        generate_preview "$fontfile" "$preview_image_name.png"
+
+        start_viewer
+        # Don't set viewerpid, else it will be killed when we exit.  (The
+        # image will be removed when we exit, but the viewer will already
+        # have read it.)
+
+        # exit will remove the file, so give viewer time to read it first
+        sleep 0.2
+        exit
+    fi
+}
+
+main()
+{
+    # Save the window ID of our terminal window.  We want to be able to
+    # bring focus back here, after spawning the viewer.
+    xdotool getactivewindow > "$fp_dir/term_win_id"
 
     qstring=;
 
     while : loop; do
-        # List out all the fonts which imagemagick is able to find, extract
-        # the font names and then pass them to fzf
-        # the result file from fzf will have the query as the first line,
-        # and the result as the second.
+        # List all fonts imagemagick can find, and pass them to fzf. 
+        # fzf's result file will have the query as the first line, and
+        # the result as the second.  Or just the query if not found,
+        # or neither on failure.
         $magick -list font |
             sed -n -e '/^ *Font: /s///p' |
                 fzf --query="$qstring" \
                     -i \
-                    --history=$FONTPREVIEW_DIR/history \
+                    --history=$fp_dir/history \
                     --bind 'esc:ignore' \
                     --print-query \
                     --no-clear \
                     --no-color \
-                    --prompt="$SEARCH_PROMPT" 2>&3 \
-                            > $FONTPREVIEW_DIR/result
+                    --prompt="> " 2>&3 \
+                            > $fp_dir/result
         fzf_ret=$?
 
-        # might be empty
-        qstring=$(head -n 1 $FONTPREVIEW_DIR/result)
+        qstring=$(head -n 1 $fp_dir/result)     # might be empty
 
         # fzf exit codes:
         # 0      Normal exit
@@ -210,125 +249,89 @@ main(){
         1)      continue ;; # no match
         esac
 
-        font=$(tail -n 1 $FONTPREVIEW_DIR/result)
+        font=$(tail -n 1 $fp_dir/result)
         qstring="$font"
-        sed -i -e '$d' $FONTPREVIEW_DIR/history
-        echo "$qstring" >> $FONTPREVIEW_DIR/history
+        sed -i -e '$d' $fp_dir/history
+        echo "$qstring" >> $fp_dir/history
 
-        generate_preview "$font" "$FONT_PREVIEW"
+        generate_preview "$font" "$preview_image_name$newviewer.png"
 
         if [[ ! $viewerpid ]] || ! kill -0 $viewerpid 2>/dev/null; then
             start_viewer
-            viewerpid=$!
+            if [[ $multi_viewer ]]
+            then
+                # by not setting $viewerpid, a new viewer will be
+                # started for every font selected.  incrementing
+                # newviewer will give every viewer a unique filename,
+                (( newviewer++ ))
+            else
+                # this will let us reuse the existing viewer, since
+                # we'll have a record that it's alive.  and by not
+                # setting $newviewer, the viewer will keep re-reading
+                # the same preview file.
+                viewerpid=$!
+            fi
 
             # Change focus from nsxiv, back to the terminal window
             # so that user can continue to search for fonts without
             # having to manually change focus back to the terminal window
-            xdotool windowfocus "$(cat "$TERMWIN_IDFILE")"
+            xdotool windowfocus "$(cat "$fp_dir/term_win_id")"
         fi
     done
 }
 
-trap pre_exit EXIT
+process_args()
+{
+    options=$(getopt \
+        --name fontpreview \
+        --alternative \
+        --options h \
+        --long "position:,\
+                size:,\
+                font-size:,\
+                bg-color:,\
+                fg-color:,\
+                preview-text:,\
+                no-preview-header,\
+                multi-viewer,\
+                help" \
+        -- "$@") || error "use -h for help"
 
-# Use mktemp to create a temporary directory that won't
-# collide with temporary files of other application.
-FONTPREVIEW_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fontpreview_dir.XXXXXXXX")" || exit
-FONT_PREVIEW="$FONTPREVIEW_DIR/fontpreview.png"
-touch "$FONT_PREVIEW" || exit
-TERMWIN_IDFILE="$FONTPREVIEW_DIR/fontpreview.termpid"
-touch "$TERMWIN_IDFILE" || exit
+    eval set -- "$options"
+
+    while : option loop
+    do
+        : case "$1"
+        case "$1" in
+            --position)          preview_pos=$2; shift ;;
+            --size)              preview_size=$2; shift ;;
+            --font-size)         font_size=$2; shift ;;
+            --bg-color)          bg_color=$2; shift ;;
+            --fg-color)          fg_color=$2; shift ;;
+            --preview-text)      preview_text=$2; shift ;;
+            --no-preview-header) preview_fontname=; ;;
+            --multi-viewer)      multi_viewer=true ;;
+            -h|--help)           show_help; exit ;;
+            --)
+                shift
+                break
+                ;;
+        esac
+        shift
+    done
+    fileargs=( "$@" )
+
+    vieweropts+=( -g "$preview_size$preview_pos" )
+}
 
 
-# Parse the arguments
-options=$(getopt -o hi:o: --long position:,size:,version,search-prompt:,font-size:,bg-color:,fg-color:,preview-text:,preview-header:,input:,output:,help -- "$@")
-# exit on usage errors
-[[ $? == 0 ]] || error "try -h for help"
+trap on_exit EXIT
 
-eval set -- "$options"
+find_tools
 
-while true; do
-    case "$1" in
-        --size)
-            shift
-            FONTPREVIEW_SIZE=$2
-            ;;
-        --position)
-            shift
-            FONTPREVIEW_POSITION=$2
-            ;;
-        -h|--help)
-            show_help
-            exit
-            ;;
-        --version)
-            echo $VERSION
-            exit
-            ;;
-        -i|--input)
-            input_file="$2"
-            ;;
-        -o|--output)
-            output_file="$2"
-            ;;
-        --search-prompt)
-            FONTPREVIEW_SEARCH_PROMPT=$2
-            ;;
-        --font-size)
-            FONTPREVIEW_FONT_SIZE=$2
-            ;;
-        --bg-color)
-            FONTPREVIEW_BG_COLOR=$2
-            ;;
-        --fg-color)
-            FONTPREVIEW_FG_COLOR=$2
-            ;;
-        --preview-text)
-            FONTPREVIEW_PREVIEW_TEXT=$2
-            ;;
-        --preview-header)
-            case $2 in
-            [yYtT1]*) FONTPREVIEW_HEADER=true ;;
-            [nNfF0]*) FONTPREVIEW_HEADER=false; ;;
-            esac
-            ;;
-        --)
-            shift
-            break
-            ;;
-    esac
-    shift
-done
+process_args "$@"
 
-initialize
-
-font=$1
-
-# Point a font file to fontpreview and it will preview it.
-# Example:
-#   $ fontpreview /path/to/fontFile.ttf
-#
-# This is useful because people can preview fonts which they have not
-# installed onto their system. So if they want to preview a font file that
-# is in their Downloads directory, then they can easily preview it.
-if [ -f "$font" ]; then
-    generate_preview "$font" "$FONT_PREVIEW"
-
-    start_viewer
-    # don't set viewerpid, else it will be killed when we exit
-
-    # exit will remove the file, so give nsxiv time to read it first
-    sleep 0.1
-    exit
-fi
-
-# Check if the user gave an input file if they did, then create a preview
-# and then save the preview to the current working directory
-if [ "$input_file" != "" ] ; then
-    [ -z "$output_file" ] && output_file="${input_file}.png"
-    generate_preview "$input_file" "$output_file"
-    exit
-fi
+one_shot_commands ${fileargs[0]} ${fileargs[1]}   # might not return
 
 main
 
