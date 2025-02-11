@@ -69,6 +69,8 @@ pre_exit() {
 
     # Delete tempfiles, so we don't leave useless files behind.
     rm -rf "$FONTPREVIEW_DIR"
+
+    echo
     exit
 }
 
@@ -323,3 +325,4 @@ if [ "$input_file" != "" ] ; then
 fi
 
 main
+
