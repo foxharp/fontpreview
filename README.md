@@ -55,8 +55,9 @@ Things you might need to fetch from your package manager:
 
 ## Installation
 Simply download the script, make it executable, and put it in your
-PATH somewhere.
-
+PATH somewhere.  To download from github, click on the script "fontpreview",
+then use the "hamburger" menu or ctrl-shift-s to download it.  You'll need
+to ```mv fontpreview.txt fontpreview``` after it's downloaded.
 
 ## Customization
 
