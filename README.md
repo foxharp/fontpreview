@@ -1,113 +1,67 @@
-<p align="center"><img src="extra/logo.png"><br><sub>✨ Very customizable and minimal font previewer written in bash ✨</sub></p>
+<!-- doit: python3 -m markdown < README.md >README.html
+-->
 
-`fontpreview` is a commandline tool that lets you **quickly search** for fonts
-that are installed on your machine and preview them. The **fuzzy search** feature
-is provided by `fzf` and the preview is generated with `imagemagick` and then
-displayed using `nsxiv`. This tool is **highly customizable**, almost all of the
-variables in this tool can be changed using the commandline flags or you can
-configure them using environment variables.
+# fontpreview
 
-![](extra/demo.gif)
+This previewer started as a clone of
+<https://github.com/sdushantha/fontpreview>,
+written by github user sdushantha.  They created a clever mechanism
+for quickly getting a look at the contents of a font, in an easy to
+navigate way.  It's not clear that the original project is still being
+maintained, so I've kind of had my way with the code, and it's diverged
+quite a bit.  The rest of the README describes my version, though from
+a high level it's still pretty similar to sdushantha's.
+
+__fontpreview__ lets you quickly search through installed fonts using
+the __fzf__ "fuzzy matcher", and preview them.  The previewer (any of
+__sxiv__, __nsxiv__, or __feh__ will work) is normally reused for each
+new font, but it's also possible to bring up a separate preview for
+every selection. 
+
+![Animated screen showing fontpreview in use](extra/demo.gif)
 
 ## Dependencies
 
-- `xdotool`
-- `fzf`
-- `imagemagick`
-- `nsxiv`, `sxiv`, or `feh`
+Things you might need to fetch from your package manager:
+
+- xdotool
+- fzf
+- imagemagick
+- nsxiv, sxiv, or feh
+
+
+## Usage Summary
+
+    Interactive usage:
+        fontpreview [--size WxH ] [--position +X+Y ]
+                    [--bg-color <colorspec> ] [--fg-color <colorspec> ]
+                    [--font-size <pixels> ] [--preview-text <text> ]
+                    [--no-preview-header ] [--multi-viewer ]
+     
+       --multi-viewer           spawn new viewer per font.  (clean up manually.)
+       --size WxH               width and height in pixels
+       --position +X+Y/-X-Y     position, in X geometry notation (see "man X")
+       --font-size              font size for the preview window
+       --bg-color,--fg-color    colors for the preview window
+       --preview-text           text to be previewed
+       --no-preview-header      don't include the font name in the preview
+
+    One-shot usage (most interactive options still apply):
+        To preview a font from its file (.otf, .ttf, .woff):
+            fontpreview <fontfile>
+        To preview a font into an image file:
+            fontpreview <fontfile> <imagefile>
+
 
 ## Installation
-### Install using `make`
-```bash
-# Clone the repo
-$ git clone https://github.com/sdushantha/fontpreview
-
-# Change your current directory to fontpreview
-$ cd fontpreview
-
-# Install it
-$ sudo make install
-```
-
-### Install it locally
-```bash
-# Download the fontpreview source code, save as fontpreview
-# and make it executeable
-$ curl -L https://git.io/raw_fontpreview > fontpreview && chmod +x fontpreview
-
-# Then move fontpreview to somewhere in your $PATH
-# Here is an example
-$ mv fontpreview ~/scripts/
-```
-
-## Usage
-```
-$ fontpreview --help
-usage: fontpreview [-h] [--size "px"] [--position "+x+y"] [--search-prompt SEARCH_PROMPT]
-                   [--font-size "FONT_SIZE"] [--bg-color "BG_COLOR"] [--fg-color "FG_COLOR"]
-                   [--preview-text "PREVIEW_TEXT"] [-i font.otf] [-o preview.png] [--version]
-
-┌─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐┌─┐┬  ┬┬┌─┐┬ ┬
-├┤ │ ││││ │ ├─┘├┬┘├┤ └┐┌┘│├┤ │││
-└  └─┘┘└┘ ┴ ┴  ┴└─└─┘ └┘ ┴└─┘└┴┘
-Very customizable and minimal font previewer written in bash
-
-optional arguments:
-   -h, --help            show this help message and exit
-   -i, --input           filename of the input font (.otf, .ttf, .woff are supported)
-   -o, --output          filename of the output preview image (input.png if not set)
-   --size                size of the font preview window
-   --position            the position where the font preview window should be displayed
-   --search-prompt       input prompt of fuzzy searcher
-   --font-size           font size
-   --bg-color            background color of the font preview window
-   --fg-color            foreground color of the font preview window
-   --preview-text        preview text that should be displayed in the font preview window
-   --version             show the version of fontpreview you are using
-```
-
-If you want to generate a preview image for a **single** font file
-(.otf, .ttf, and .woff are supported), use the `-i` and `-o` option
-to indicate the filename of the input font and the output preview
-image.
-
-```
-$ fontpreview -i font.otf -o preview.png
-```
-
-This can be used with [überzug](https://github.com/seebye/ueberzug)
-to implement font preview within terminal file managers such as
-[vifm](https://vifm.info/).
-
-![](extra/vifm.png)
-
-A detailed setup instructions can be found [here](https://krasjet.com/scribbles/font-preview.html)
+Simply download the script, make it executable, and put it in your
+PATH somewhere.
 
 
-## Configure
-You can configure `fontpreview` through environment variables.
+## Customization
 
-This can be in your `.bashrc`, `.zshrc`, etc
-
-```bash
-# Input prompt of fuzzy searcher
-export FONTPREVIEW_SEARCH_PROMPT="❯ "
-
-# Size of the font preview window
-export FONTPREVIEW_SIZE=532x365
-
-# The position where the font preview window should be displayed
-export FONTPREVIEW_POSITION="+0+0"
-
-# Font size
-export FONTPREVIEW_FONT_SIZE=38
-
-# Background color of the font preview window
-export FONTPREVIEW_BG_COLOR="#ffffff"
-
-# Foreground color of the font preview window
-export FONTPREVIEW_FG_COLOR="#000000"
-
-# Preview text that should be displayed in the font preview window
-export FONTPREVIEW_PREVIEW_TEXT="ABCDEFGHIJKLM\nNOPQRSTUVWXYZ\nabcdefghijklm\nnopqrstuvwxyz\n1234567890\n!@$\%(){}[]"
-```
+Hey, it's a shell script -- customize all you want.  ;-)  If you
+just want to change some of the predefined defaults for color, size,
+etc, there's provision for putting those new definitions into
+`~/.fontpreview`.  See the script for the names of the variables
+that can be changed in that way.
