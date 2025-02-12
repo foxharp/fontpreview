@@ -6,6 +6,8 @@
 #
 # Dependencies: nsxiv, sxiv, or feh, and imagemagick, xdotool, fzf
 
+# debug=true
+
 show_help()
 {
 printf "%s" "\
@@ -33,8 +35,9 @@ One-shot usage (most interactive options still apply):
 }
 
 # Debug support:
-debug=t;
-# save a copy of original stderr for fzf to use, so we can trace on stderr
+# Save a copy of original stderr on fd 3 for fzf to use.
+# fd 4 will point at either /dev/null or stderr, depending on whether
+# we're tracing.
 exec 3>&2
 exec 4>/dev/null  # dump fd 4, except when debugging (see below)
 [[ $debug ]] && { exec 2>/tmp/fontpreview.log ; set -x; exec 4>&2;  }
@@ -45,7 +48,6 @@ exec 4>/dev/null  # dump fd 4, except when debugging (see below)
 fp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fontpreview_dir.XXXXXXXX")" || exit
 
 preview_image_name="$fp_dir/fontpreview"    # .png suffix added later
-user_config=~/.fontpreview
 
 # Default values, mostly changeable from command line, and
 # certainly from user config file
@@ -71,8 +73,8 @@ preview_text='\
  السلام عليكم \
 '
 
-# let user override defaults
-source $user_config 2>&4
+# let user override the defaults above
+source ~/.fontpreview 2>&4
 
 on_exit()
 {
@@ -131,6 +133,7 @@ generate_preview()
 error()
 {
     echo fontpreview: "$@" >&2
+    [[ $debug ]] && echo fontpreview: "$@" >&3
     exit 1
 }
 
