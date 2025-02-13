@@ -344,13 +344,19 @@ main()
 
         case $fzf_ret in
         130|2)  return ;;   # error or interrupt
-        1)      continue ;; # no match
+        1)      continue ;; # no match -- reuse the previous query string
         esac
 
         font=$(tail -n 1 $fp_dir/result)
+
+        # make sure there's only one entry for this font in history,
+        # and make sure it's at the end.
+        grep -iv "^$font$" $fp_dir/history > $fp_dir/history.new
+        echo "$font" >> $fp_dir/history.new
+        mv  $fp_dir/history.new $fp_dir/history
+
+        # use found result as next query
         qstring="$font"
-        sed -i -e '$d' $fp_dir/history
-        echo "$qstring" >> $fp_dir/history
 
         generate_preview "$font" "$preview_image_name$newviewer.png"
 
