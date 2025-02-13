@@ -8,29 +8,35 @@
 
 # debug=true
 
-show_help()
+usage()
 {
 printf "%s" "\
 
-Interactive usage:
-    fontpreview [--size WxH ] [--position +X+Y ]
-                [--bg-color <colorspec> ] [--fg-color <colorspec> ]
-                [--font-size <pixels> ] [--preview-text <text> ]
-                [--no-preview-header ] [--multi-viewer ]
- 
-   --multi-viewer           spawn new viewer per font.  (clean up manually.)
-   --size WxH               width and height in pixels
-   --position +X+Y/-X-Y     position, in X geometry notation (see \"man X\")
-   --font-size              font size for the preview window
-   --bg-color,--fg-color    colors for the preview window
-   --preview-text           text to be previewed
-   --no-preview-header      don't include the font name in the preview
+usage:
 
-One-shot usage (most interactive options still apply):
-    To preview a font from its file (.otf, .ttf, .woff):
-        fontpreview <fontfile>
-    or to create a preview image from its file:
-        fontpreview <fontfile> <imagefile>
+ fontpreview [options] <fontfile>
+    to preview a font from its file (.otf, .ttf)
+
+ fontpreview [options] <fontfile> <imagefile>
+    to create an image from the preview
+
+ fontpreview [options]
+    interactive use
+
+ Options:
+   -text                   text to be previewed
+   -font-size              font size for the preview window
+   -no-preview-header      don't include the font name in the preview
+   -multi-viewer           spawn new viewer per font.  (clean up manually.)
+   -bg-color <colorspec>   background color for the preview window
+   -fg-color <colorspec>   foreground color for the preview window
+   -size WxH               width and height in pixels (overrides autosizing)
+   -position +X+Y/-X-Y     position, as in X geometry (see \"man X\")
+
+   All options can be shortened to the first character of each word in
+       the option:  e.g., '-fs' for '-font-size', or '-t' for '-text'.
+       (Or, reduced to the the shortest unique prefix.)
+   Either '-' or '--' can introduce any option.
 "
 }
 
@@ -51,15 +57,15 @@ preview_image_name="$fp_dir/fontpreview"    # .png suffix added later
 
 # Default values, mostly changeable from command line, and
 # certainly from user config file
+autosize=true   # we autosize the window unless its overridden with --size
 preview_size=530x730
 preview_pos=;   # window manager chooses a position by default
-font_size=38
-fontname_size=30
+font_size=38      # points
+fontname_size=30  # points
 bg_color="#ffffff"
 fg_color="#000000"
-preview_fontname=true
-preview_text='\
- ABCDEFGHIJKLM\n\
+preview_text=\
+'ABCDEFGHIJKLM\n\
  NOPQRSTUVWXYZ\n\
  abcdefghijklm\n\
  nopqrstuvwxyz\n\
@@ -70,8 +76,9 @@ preview_text='\
  DO08B 1Ili\n\
  098756938217\n\
  AR 9gq oa\n\
- السلام عليكم \
-'
+ السلام عليكم'
+preview_include_fontname=true
+fontname_wrap=30  # width in characters to which we wrap the name in the header
 
 # let user override the defaults above
 source ~/.fontpreview 2>&4
@@ -92,9 +99,9 @@ wrapfontname()
 {
     if [[ -f "$1" ]]
     then  # if it's a filename, just fold the basename
-        fold -w 20 <<<"${1##*/}"
+        fold -w $fontname_wrap <<<"${1##*/}"
     else # otherwise, change '-' to space and wrap on spaces
-        sed -e 's/-/ /g' <<<"$1" | fold -s -w 20
+        sed -e 's/-/ /g' <<<"$1" | fold -s -w $fontname_wrap
     fi
 }
 
@@ -104,8 +111,10 @@ generate_preview()
     fontspec="$1"
     image="$2"
 
+    autosize_preview
+
     declare -a headerargs
-    if [[ $preview_fontname ]]
+    if [[ $preview_include_fontname ]]
     then
         wrapped_fontname="$(wrapfontname $fontspec)"
         headerargs=( 
@@ -120,7 +129,7 @@ generate_preview()
     # Credits: https://bit.ly/2UvLVhM
     $magick -size $preview_size xc:"$bg_color" \
         "${headerargs[@]}" \
-        -gravity center \
+        -gravity south \
         -pointsize $font_size \
         -font "$fontspec" \
         -fill "$fg_color" \
@@ -174,6 +183,8 @@ start_viewer()
 {
     # put the viewer in its own session, so it will keep running if
     # we suspend.  otherwise it will suspend too, and not be quittable
+    vieweropts+=( -g "$preview_size$preview_pos" )
+    : ${vieweropts[@]}
     setsid $viewer ${vieweropts[@]} $preview_image_name$newviewer.png &
 }
 
@@ -214,6 +225,90 @@ one_shot_commands()
     fi
 }
 
+percent()
+{
+    [[ $# == 2 ]] || error internal error
+    echo $(( $1 * $2 / 100 ))
+}
+
+autosize_preview()
+{
+    [[ $autosize ]] || return
+
+    # this is a pain, because fonts vary greatly in height, even
+    # for a given point size.  and their names can be 
+
+    # get the "dimensions" of the preview text
+    dims=( $(echo "$preview_text" | wc -l -L) )
+    hgt=${dims[0]}  # height (number of lines)
+    wid=${dims[1]}  # width (length of longest line)
+
+    prev_h=$(( $hgt * $font_size ))
+    prev_w=$(( $wid * $font_size ))
+
+    # some fairly arbitrary padding -- point size apparently doesn't
+    # really mean anything, and fonts can vary by at least 30% in
+    # inter-line spacing, in my experience.  try Courier vs
+    # IBM-Plex-Sans-Condensed-ExtraLight-Italic for example.
+    prev_h=$(percent 130 $prev_h)
+    prev_w=$(percent 110 $prev_w)
+
+    # so far we've assumed that characters are square.  fix that: 
+    # assume that char width is 2/3 of height (western langs only, of
+    # course)
+    (( prev_w = 2 * prev_w / 3 ))
+
+    # need to add extra for the fontname header height and width
+    if [[ $preview_include_fontname ]]
+    then
+        # we forcibly wrap the fontname, so we know the longest possible line
+        hdr_w=$(( fontname_wrap * fontname_size ))
+        hdr_w=$(( 2 * hdr_w / 3 ))
+
+        (( prev_w < hdr_w )) && prev_w=$hdr_w
+
+        # assume at most 3 lines of wrapped font name in the header
+        hdr_h=$(( 3 * $fontname_size ))
+        prev_h=$(($prev_h + $hdr_h))
+    fi
+
+    preview_size=${prev_w}x${prev_h}
+}
+
+# for some reason using convert to size the text really doesn't work
+# well -- it exaggerates like crazy.  which probably means i'm doing
+# something wrong.  but also, it's much much slower, and causes a
+# noticeable delay, so I'm happy not to use it.
+autosize_preview_using_convert()
+{
+    [[ $autosize ]] || return
+
+    dims=( $(convert -background none -fill black -font $fontspec \
+                -pointsize $font_size -size 300x caption:"$preview_text" \
+                -trim -format "%h %w\n" info:) )
+    hgt=${dims[0]}  # height
+    wid=${dims[1]}  # width
+
+    prev_h=$(percent 110 $hgt)
+    prev_w=$(percent 110 $wid)
+
+    # need to add extra for the fontname header height and width
+    if [[ $preview_include_fontname ]]
+    then
+        # we forcibly wrap the fontname, so we know the longest possible line
+        hdr_w=$(( fontname_wrap * fontname_size ))
+        hdr_w=$(( 2 * hdr_w / 3 ))
+
+        (( prev_w < hdr_w )) && prev_w=$hdr_w
+
+        # assume at most 3 lines of wrapped font name in the header
+        hdr_h=$(( 3 * $fontname_size ))
+        prev_h=$(($prev_h + $hdr_h))
+    fi
+
+    preview_size=${prev_w}x${prev_h}
+}
+
 main()
 {
     # Save the window ID of our terminal window.  We want to be able to
@@ -234,7 +329,6 @@ main()
                     --history=$fp_dir/history \
                     --bind 'esc:ignore' \
                     --print-query \
-                    --no-clear \
                     --no-color \
                     --prompt="> " 2>&3 \
                             > $fp_dir/result
@@ -289,16 +383,16 @@ process_args()
     options=$(getopt \
         --name fontpreview \
         --alternative \
-        --options h \
-        --long "position:,\
-                size:,\
-                font-size:,\
-                bg-color:,\
-                fg-color:,\
-                preview-text:,\
-                no-preview-header,\
-                multi-viewer,\
-                help" \
+        --options "hm" \
+        --longoptions "position:,p:,\
+                size:,s:,\
+                font-size:,fs:,\
+                bg-color:,bg:,bc:,\
+                fg-color:,fg:,fc:,\
+                text:,t:,\
+                no-preview-header,nph,\
+                multi-viewer,mv,m,\
+                help,h" \
         -- "$@") || error "use -h for help"
 
     eval set -- "$options"
@@ -307,15 +401,15 @@ process_args()
     do
         : case "$1"
         case "$1" in
-            --position)          preview_pos=$2; shift ;;
-            --size)              preview_size=$2; shift ;;
-            --font-size)         font_size=$2; shift ;;
-            --bg-color)          bg_color=$2; shift ;;
-            --fg-color)          fg_color=$2; shift ;;
-            --preview-text)      preview_text=$2; shift ;;
-            --no-preview-header) preview_fontname=; ;;
-            --multi-viewer)      multi_viewer=true ;;
-            -h|--help)           show_help; exit ;;
+            --position|--p)             preview_pos=$2; shift ;;
+            --size|--s)                 preview_size=$2; autosize=; shift ;;
+            --font-size|--fs)           font_size=$2; shift ;;
+            --bg-color|--bc|--bg)       bg_color=$2; shift ;;
+            --fg-color|--fc|--fg)       fg_color=$2; shift ;;
+            --text|--t)                 preview_text=$2; shift ;;
+            --no-preview-header|--nph)  preview_include_fontname=; ;;
+            --multi-viewer|--mv|--m|-m) multi_viewer=true ;;
+            --help|--h|-h)              usage; exit ;;
             --)
                 shift
                 break
@@ -325,9 +419,7 @@ process_args()
     done
     fileargs=( "$@" )
 
-    vieweropts+=( -g "$preview_size$preview_pos" )
 }
-
 
 trap on_exit EXIT
 
