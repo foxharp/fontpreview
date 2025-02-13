@@ -32,37 +32,43 @@ Things you might need to fetch from your package manager:
 
 ## Usage Summary
 
-    Interactive usage:
-        fontpreview [--size WxH ] [--position +X+Y ]
-                    [--bg-color <colorspec> ] [--fg-color <colorspec> ]
-                    [--font-size <pixels> ] [--preview-text <text> ]
-                    [--no-preview-header ] [--multi-viewer ]
-     
-       --multi-viewer           spawn new viewer per font.  (clean up manually.)
-       --size WxH               width and height in pixels
-       --position +X+Y/-X-Y     position, in X geometry notation (see "man X")
-       --font-size              font size for the preview window
-       --bg-color,--fg-color    colors for the preview window
-       --preview-text           text to be previewed
-       --no-preview-header      don't include the font name in the preview
+    usage:
 
-    One-shot usage (most interactive options still apply):
-        To preview a font from its file (.otf, .ttf, .woff):
-            fontpreview <fontfile>
-        To preview a font into an image file:
-            fontpreview <fontfile> <imagefile>
+     fontpreview [options] <fontfile>
+        to preview a font from its file (.otf, .ttf)
+
+     fontpreview [options] <fontfile> <imagefile>
+        to create an image from the preview
+
+     fontpreview [options]
+        interactive use
+
+     Options:
+       -text                   text to be previewed
+       -font-size              font size for the preview window
+       -no-preview-header      don't include the font name in the preview
+       -multi-viewer           spawn new viewer per font.  (clean up manually.)
+       -bg-color <colorspec>   background color for the preview window
+       -fg-color <colorspec>   foreground color for the preview window
+       -size WxH               width and height in pixels (overrides autosizing)
+       -position +X+Y/-X-Y     position, as in X geometry (see "man X")
+
+       All options can be shortened to the first character of each word in
+           the option:  e.g., '-fs' for '-font-size', or '-t' for '-text'.
+           (Or, reduced to the the shortest unique prefix.)
+       Either '-' or '--' can introduce any option.
 
 
 ## Installation
 Simply download the script, make it executable, and put it in your
 PATH somewhere.  To download from github, click on the script "fontpreview",
 then use the "hamburger" menu or ctrl-shift-s to download it.  You'll need
-to ```mv fontpreview.txt fontpreview``` after it's downloaded.
+to "```mv fontpreview.txt fontpreview```" after it's downloaded.
 
 ## Customization
 
 Hey, it's a shell script -- customize all you want.  ;-)  If you
 just want to change some of the predefined defaults for color, size,
 etc, there's provision for putting those new definitions into
-`~/.fontpreview`.  See the script for the names of the variables
+`$HOME/.fontpreview`.  See the script for the names of the variables
 that can be changed in that way.
